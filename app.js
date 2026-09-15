@@ -31,6 +31,7 @@ const prevMonth = document.getElementById("prevMonth");
 const nextMonth = document.getElementById("nextMonth");
 const expenseMonthPicker = document.getElementById("expenseMonthPicker");
 const themeBtn = document.getElementById("themeBtn");
+const settingsBtn = document.getElementById("settingsBtn");
 const exportBtn = document.getElementById("exportBtn");
 const importFile = document.getElementById("importFile");
 const resetBtn = document.getElementById("resetBtn");
@@ -895,6 +896,8 @@ function bindEvents() {
     localStorage.setItem("money-theme", dark ? "dark" : "light");
   });
 
+  if (settingsBtn) settingsBtn.addEventListener("click", () => go("settings"));
+
   if (exportBtn) exportBtn.addEventListener("click", () => {
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
     const link = document.createElement("a");
@@ -931,13 +934,14 @@ function bindEvents() {
   document.documentElement.classList.toggle("dark", !prefersLight);
 
   if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js?v=20260915-17").catch(() => {}));
+    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js?v=20260915-19").catch(() => {}));
   }
 }
 
 function go(screen) {
   document.querySelectorAll(".screen").forEach((panel) => panel.classList.toggle("active", panel.id === screen));
   document.querySelectorAll(".nav-item").forEach((button) => button.classList.toggle("active", button.dataset.screen === screen));
+  if (settingsBtn) settingsBtn.classList.toggle("active", screen === "settings");
 }
 
 function render() {

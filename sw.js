@@ -1,10 +1,10 @@
-const CACHE = "money-ledger-v2-cache-17";
+const CACHE = "money-ledger-v2-cache-19";
 const ASSETS = [
 	"./",
 	"./index.html",
-	"./style.css?v=20260915-17",
-	"./app.js?v=20260915-17",
-	"./manifest.json?v=20260915-17",
+	"./style.css?v=20260915-19",
+	"./app.js?v=20260915-19",
+	"./manifest.json?v=20260915-19",
 	"./icon-192.png",
 	"./icon-512.png"
 ];
