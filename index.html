@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b1220">
+  <meta name="description" content="Personal finance ledger">
+  <link rel="manifest" href="manifest.json?v=20260915-17">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="style.css?v=20260915-17">
+  <title>Money Ledger</title>
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">personal finance</div>
+        <h1>Money Ledger</h1>
+      </div>
+      <button class="icon-btn" id="themeBtn" aria-label="Toggle theme">☼</button>
+    </header>
+
+    <main>
+      <section id="dashboard" class="screen active">
+        <div class="hero-card">
+          <div class="eyebrow">total assets</div>
+          <div class="hero-number" id="dashAssets">₹0</div>
+          <div class="hero-sub" id="dashAssetCount">0 assets</div>
+        </div>
+        <div id="homeSummary" class="overview-grid"></div>
+        <div id="homeInsights" class="home-insights"></div>
+      </section>
+
+      <section id="income" class="screen">
+        <div class="page-title">
+          <div>
+            <div class="eyebrow">income</div>
+            <h2>Income</h2>
+          </div>
+          <div class="action-group">
+            <button class="secondary" id="addIncomeTypeBtn">Add type</button>
+            <button class="primary" id="addIncomeBtn">Add entry</button>
+          </div>
+        </div>
+        <div id="incomeDetail"></div>
+        <div id="incomeOverview" class="summary-grid"></div>
+      </section>
+
+      <section id="expenses" class="screen">
+        <div class="page-title">
+          <div>
+            <div class="eyebrow">expenses</div>
+            <h2>Expenses</h2>
+          </div>
+          <button class="primary" id="addExpenseBtn">Add expense</button>
+        </div>
+
+        <div id="expenseOverview" class="summary-grid"></div>
+        <div class="month-nav card">
+          <button class="icon-btn" id="prevMonth" aria-label="Previous month">‹</button>
+          <button class="month-center" id="expenseMonthPicker" type="button" aria-label="Choose expense month"></button>
+          <button class="icon-btn" id="nextMonth" aria-label="Next month">›</button>
+        </div>
+        <div id="expenseCurrentTotal" class="current-total card"></div>
+        <div id="expenseCalendar" class="expense-calendar"></div>
+      </section>
+
+      <section id="assets" class="screen">
+        <div class="page-title">
+          <div>
+            <div class="eyebrow">assets</div>
+            <h2>Assets</h2>
+          </div>
+          <button class="primary" id="addAssetBtn">Add asset</button>
+        </div>
+        <div class="asset-total card"><span>Total assets</span><strong id="assetTotal">₹0</strong></div>
+        <div id="assetList" class="asset-list"></div>
+      </section>
+
+      <section id="settings" class="screen">
+        <div class="page-title">
+          <div>
+            <div class="eyebrow">app</div>
+            <h2>Settings</h2>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <button class="setting-row" id="exportBtn">
+            <span>Export backup</span>
+            <small>Save all data as JSON</small>
+            <b>›</b>
+          </button>
+
+          <label class="setting-row">
+            <span>Import backup</span>
+            <small>Restore a JSON backup</small>
+            <b>›</b>
+            <input id="importFile" type="file" accept=".json" hidden>
+          </label>
+
+          <button class="setting-row danger" id="resetBtn">
+            <span>Reset all data</span>
+            <small>This cannot be undone</small>
+            <b>›</b>
+          </button>
+        </div>
+
+        <div class="about card">
+          <b>Money Ledger</b>
+          <p>Your personal money dashboard, stored only in this browser unless you export it.</p>
+        </div>
+      </section>
+
+      <section id="notes" class="screen">
+        <div class="page-title">
+          <div>
+            <div class="eyebrow">notes</div>
+            <h2>Notes</h2>
+          </div>
+          <div class="action-group">
+            <button class="secondary" id="addPlainNoteBtn">Plain note</button>
+            <button class="primary" id="addMoneyNoteBtn">Money note</button>
+          </div>
+        </div>
+        <div id="notesList" class="notes-list"></div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav">
+      <button class="nav-item active" data-screen="dashboard"><span>⌂</span><small>Home</small></button>
+      <button class="nav-item" data-screen="income"><span>↑</span><small>Income</small></button>
+      <button class="nav-item" data-screen="expenses"><span>↓</span><small>Expenses</small></button>
+      <button class="nav-item" data-screen="assets"><span>◉</span><small>Assets</small></button>
+      <button class="nav-item" data-screen="settings"><span>⚙</span><small>Settings</small></button>
+      <button class="nav-item" data-screen="notes"><span>▤</span><small>Notes</small></button>
+    </nav>
+  </div>
+
+  <div id="modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop"></div>
+    <div class="sheet">
+      <div class="sheet-head">
+        <h3 id="modalTitle">Add</h3>
+        <button class="icon-btn" id="modalCloseBtn" aria-label="Close modal">×</button>
+      </div>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script src="app.js?v=20260915-17"></script>
+</body>
+</html>
