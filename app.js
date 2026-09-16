@@ -10,6 +10,7 @@ let expandedIncomeCategory = null;
 let incomeForm = null;
 let selectedAssetId = null;
 let expenseMode = "month";
+let pendingConfirmation = null;
 
 const modal = document.getElementById("modal");
 const modalTitle = document.getElementById("modalTitle");
@@ -221,6 +222,27 @@ function hideModal() {
   modal.classList.add("hidden");
   modal.setAttribute("aria-hidden", "true");
   editing = null;
+  pendingConfirmation = null;
+}
+
+function askConfirmation(message, action) {
+  pendingConfirmation = action;
+  showModal("Please confirm", `
+    <div class="confirm-dialog">
+      <p>${esc(message)}</p>
+      <div class="form-actions">
+        <button type="button" class="cancel" onclick="hideModal()">Cancel</button>
+        <button type="button" class="danger-action" onclick="confirmPendingAction()">Confirm</button>
+      </div>
+    </div>
+  `);
+}
+
+function confirmPendingAction() {
+  const action = pendingConfirmation;
+  pendingConfirmation = null;
+  hideModal();
+  if (action) action();
 }
 
 function formButtons() {
@@ -301,7 +323,7 @@ function renderIncome() {
 
   incomeOverview.innerHTML = totals.map(({ category, total, count }) => {
     const expanded = expandedIncomeCategory === category;
-    const entries = state.income.filter((entry) => entry.category === category).sort((a, b) => a.month.localeCompare(b.month));
+    const entries = state.income.filter((entry) => entry.category === category).sort((a, b) => b.month.localeCompare(a.month));
     return `
       <div class="expand-card ${expanded ? "active" : ""}">
         <button class="expand-head" data-income-toggle="${esc(category)}" aria-expanded="${expanded}">
@@ -311,7 +333,7 @@ function renderIncome() {
         </button>
         ${expanded ? `
           <div class="expand-body">
-            <div class="row-actions"><button class="primary small" data-add-category="${esc(category)}">Add entry</button></div>
+            <div class="row-actions"><button class="primary small" data-add-category="${esc(category)}">Add entry</button><button class="secondary small" data-delete-category="${esc(category)}">Delete</button></div>
             ${incomeForm && incomeForm.category === category && incomeForm.mode === "add" ? incomeFormMarkup(category) : ""}
             <div class="table-wrap">
               <table class="ledger-table">
@@ -342,6 +364,10 @@ function renderIncome() {
       expandedIncomeCategory = button.dataset.addCategory;
       renderIncome();
     });
+  });
+
+  incomeOverview.querySelectorAll("[data-delete-category]").forEach((button) => {
+    button.addEventListener("click", () => deleteIncomeType(button.dataset.deleteCategory));
   });
 
   incomeOverview.querySelectorAll("[data-income-form]").forEach((form) => form.addEventListener("submit", submitIncome));
@@ -381,11 +407,12 @@ function editIncome(idValue) {
 }
 
 function deleteIncome(idValue) {
-  if (!confirm("Delete this income entry?")) return;
-  state.income = state.income.filter((entry) => entry.id !== idValue);
-  if (incomeForm?.id === idValue) incomeForm = null;
-  saveState();
-  toast("Income entry deleted");
+  askConfirmation("Delete this income entry?", () => {
+    state.income = state.income.filter((entry) => entry.id !== idValue);
+    if (incomeForm?.id === idValue) incomeForm = null;
+    saveState();
+    toast("Income entry deleted");
+  });
 }
 
 function submitIncome(event) {
@@ -425,6 +452,23 @@ function addIncomeType() {
     saveState();
     toast("Income type added");
   }
+}
+
+function deleteIncomeType(category) {
+  if (state.incomeCategories.length <= 1) {
+    toast("Keep at least one income type");
+    return;
+  }
+
+  askConfirmation(`Delete ${category} and all its income entries?`, () => {
+    state.incomeCategories = state.incomeCategories.filter((item) => item !== category);
+    state.income = state.income.filter((entry) => entry.category !== category);
+    if (selectedIncomeCategory === category) selectedIncomeCategory = null;
+    if (expandedIncomeCategory === category) expandedIncomeCategory = null;
+    incomeForm = null;
+    saveState();
+    toast("Income type deleted");
+  });
 }
 
 function renderExpenses() {
@@ -525,7 +569,7 @@ function addExpenseRow(date) {
   row.innerHTML = `
     <input class="quick-amount" type="number" placeholder="Amount" inputmode="decimal">
     <input class="quick-desc" placeholder="Description">
-    <button class="row-delete" onclick="this.parentElement.remove()">×</button>
+    <button class="row-delete" onclick="confirmRemoveDraftRow(this)">×</button>
   `;
   container.appendChild(row);
 }
@@ -560,9 +604,15 @@ function saveDay(date) {
 }
 
 function removeExpense(idValue) {
-  state.expenses = state.expenses.filter((entry) => entry.id !== idValue);
-  saveState();
-  toast("Expense removed");
+  askConfirmation("Delete this expense?", () => {
+    state.expenses = state.expenses.filter((entry) => entry.id !== idValue);
+    saveState();
+    toast("Expense removed");
+  });
+}
+
+function confirmRemoveDraftRow(button) {
+  askConfirmation("Remove this unsaved row?", () => button.parentElement.remove());
 }
 
 function addExpenseForDate(date) {
@@ -615,7 +665,7 @@ function renderAssets() {
   assetList.innerHTML = state.assets.map((asset) => {
     const open = selectedAssetId === asset.id;
     const balance = assetBalance(asset);
-    const rows = [...(asset.transactions || [])].sort((a, b) => a.date.localeCompare(b.date));
+    const rows = [...(asset.transactions || [])].sort((a, b) => b.date.localeCompare(a.date));
 
     return `
       <div class="asset-card ${open ? "active" : ""}">
@@ -716,7 +766,7 @@ function addAssetDraftRow(assetId) {
     </select>
     <input type="number" placeholder="Amount" step="0.01">
     <input type="text" placeholder="Description">
-    <button class="row-delete" onclick="this.parentElement.remove()">×</button>
+    <button class="row-delete" onclick="confirmRemoveDraftRow(this)">×</button>
   `;
   draftBox.appendChild(row);
 }
@@ -746,9 +796,11 @@ function deleteAssetTx(assetId, txId) {
   const asset = state.assets.find((item) => item.id === assetId);
   if (!asset) return;
 
-  asset.transactions = (asset.transactions || []).filter((tx) => tx.id !== txId);
-  saveState();
-  toast("Transaction removed");
+  askConfirmation("Delete this asset transaction?", () => {
+    asset.transactions = (asset.transactions || []).filter((tx) => tx.id !== txId);
+    saveState();
+    toast("Transaction removed");
+  });
 }
 
 function addAsset() {
@@ -775,11 +827,12 @@ function submitAsset(event) {
 }
 
 function deleteAsset(assetId) {
-  if (!confirm("Delete this asset and all its transactions?")) return;
-  state.assets = state.assets.filter((item) => item.id !== assetId);
-  selectedAssetId = null;
-  saveState();
-  toast("Asset deleted");
+  askConfirmation("Delete this asset and all its transactions?", () => {
+    state.assets = state.assets.filter((item) => item.id !== assetId);
+    selectedAssetId = null;
+    saveState();
+    toast("Asset deleted");
+  });
 }
 
 function showHomeSummary(type) {
@@ -851,9 +904,11 @@ function openNote(noteId) {
 }
 
 function deleteNote(noteId) {
-  state.notes = (state.notes || []).filter((note) => note.id !== noteId);
-  saveState();
-  toast("Note deleted");
+  askConfirmation("Delete this note?", () => {
+    state.notes = (state.notes || []).filter((note) => note.id !== noteId);
+    saveState();
+    toast("Note deleted");
+  });
 }
 
 function bindEvents() {
@@ -924,10 +979,11 @@ function bindEvents() {
   });
 
   if (resetBtn) resetBtn.addEventListener("click", () => {
-    if (!confirm("Reset all data? This cannot be undone.")) return;
-    state = freshState();
-    saveState();
-    toast("All data reset");
+    askConfirmation("Reset all data? This cannot be undone.", () => {
+      state = freshState();
+      saveState();
+      toast("All data reset");
+    });
   });
 
   const prefersLight = localStorage.getItem("money-theme") === "light";

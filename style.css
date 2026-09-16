@@ -1205,6 +1205,7 @@ html:not(.dark) { --nav-bg: rgba(255, 255, 255, 0.96); }
 .plain-note { color: var(--muted); line-height: 1.6; margin: 16px 0 0; white-space: pre-wrap; }
 .hidden { display: none !important; }
 .small { padding: 8px 11px; font-size: 0.82rem; }
+.danger-action { background: var(--red); color: #fff; border-radius: 12px; padding: 10px 14px; font-weight: 700; }
 .inline-income-form { margin: 14px 0 16px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--card-soft); }
 .inline-edit-row td { padding: 0 10px 12px; background: var(--card-soft); }
 .inline-edit-row .inline-income-form { margin: 10px 0 0; }
@@ -1215,10 +1216,10 @@ html:not(.dark) { --nav-bg: rgba(255, 255, 255, 0.96); }
 .inline-form-grid input { width: 100%; min-width: 0; margin-top: 0; background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
 .asset-draft-row { grid-template-columns: minmax(140px, 1fr) 110px minmax(140px, 1fr) minmax(180px, 1.4fr) 40px; }
 .asset-draft-row input, .asset-draft-row select { min-width: 0; width: 100%; }
-.bottom-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 13px 14px max(13px, env(safe-area-inset-bottom)); }
-.nav-item { min-height: 68px; gap: 6px; }
-.nav-item span { font-size: 1.2rem; }
-.nav-item small { font-size: clamp(0.68rem, 2.6vw, 0.82rem); font-weight: 700; }
+.bottom-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 15px 14px max(15px, env(safe-area-inset-bottom)); }
+.nav-item { min-height: 74px; gap: 7px; }
+.nav-item span { font-size: 1.4rem; }
+.nav-item small { font-size: clamp(0.75rem, 2.8vw, 0.92rem); font-weight: 700; }
 .top-actions .icon-btn.active { border-color: rgba(96, 165, 250, 0.8); background: rgba(96, 165, 250, 0.14); }
 
 @media (max-width: 760px) {
@@ -1226,7 +1227,7 @@ html:not(.dark) { --nav-bg: rgba(255, 255, 255, 0.96); }
   .topbar { padding-left: 14px; padding-right: 14px; }
   #app { padding-bottom: calc(94px + env(safe-area-inset-bottom)); }
   .bottom-nav { width: 100%; grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  .nav-item { min-height: 66px; }
+  .nav-item { min-height: 72px; }
   .asset-head { align-items: flex-start; }
   .asset-side { flex-direction: row-reverse; }
   .asset-side strong { font-size: 0.95rem; }
