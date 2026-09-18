@@ -10,7 +10,7 @@ Mobile-first offline personal finance PWA. Data is stored locally on the device 
 5. Allow Python through Windows Firewall on Private networks if the phone cannot connect.
 6. For a downloadable offline app, deploy this folder to an HTTPS static host, then install it from the phone browser. This PWA stores its data on the phone and continues working offline after the first successful load.
 
-The simplest free option is GitHub Pages: create a GitHub repository, upload these files, enable **Settings > Pages > Deploy from branch**, then open the generated `https://...github.io/...` address on your phone.
+The simplest free option is GitHub Pages: create a GitHub repository, upload these files, then enable **Settings > Pages > Source: GitHub Actions**. The included workflow publishes the site after every push to `main`; open the generated `https://...github.io/...` address on your phone.
 
 On Android Chrome: open the HTTPS URL, tap the three-dot menu, then choose `Install app` or `Add to Home screen`.
 

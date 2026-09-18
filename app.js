@@ -1,4 +1,4 @@
-const KEY = "money-ledger-v2";
+const KEY = "money-ledger-v3";
 const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const defaultExpenseCategories = ["Food","Transport","PG/Rent","Shopping","Bills","Personal","Other"];
 
@@ -54,6 +54,21 @@ function freshState() {
   };
 }
 
+function normalizeState(value) {
+  const base = freshState();
+  return {
+    incomeCategories: Array.isArray(value?.incomeCategories) && value.incomeCategories.length ? value.incomeCategories : base.incomeCategories,
+    expenseCategories: Array.isArray(value?.expenseCategories) && value.expenseCategories.length ? value.expenseCategories : base.expenseCategories,
+    income: Array.isArray(value?.income) ? value.income : [],
+    expenses: Array.isArray(value?.expenses) ? value.expenses : [],
+    assets: Array.isArray(value?.assets) ? value.assets.map((asset) => ({
+      ...asset,
+      transactions: Array.isArray(asset.transactions) ? asset.transactions : []
+    })) : [],
+    notes: Array.isArray(value?.notes) ? value.notes : []
+  };
+}
+
 function id() {
   return crypto.randomUUID ? crypto.randomUUID() : `id-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
@@ -93,19 +108,12 @@ function loadState() {
     const raw = localStorage.getItem(KEY);
     const parsed = raw ? JSON.parse(raw) : null;
     if (parsed && Array.isArray(parsed.income) && Array.isArray(parsed.expenses) && Array.isArray(parsed.assets)) {
-      return {
-        incomeCategories: Array.isArray(parsed.incomeCategories) && parsed.incomeCategories.length ? parsed.incomeCategories : ["Salary", "Interest", "Grow Interest", "Bonus", "Other"],
-        expenseCategories: Array.isArray(parsed.expenseCategories) && parsed.expenseCategories.length ? parsed.expenseCategories : [...defaultExpenseCategories],
-        income: parsed.income,
-        expenses: parsed.expenses,
-        assets: parsed.assets,
-        notes: Array.isArray(parsed.notes) ? parsed.notes : []
-      };
+      return normalizeState(parsed);
     }
   } catch (error) {
     console.warn("Could not parse stored state", error);
   }
-  return seedDemoData();
+  return freshState();
 }
 
 function seedDemoData() {
@@ -690,8 +698,10 @@ function renderAssets() {
                 <div class="eyebrow">ledger</div>
                 <h4>${esc(asset.name)}</h4>
               </div>
-              <button class="secondary small" data-asset-add="${asset.id}">Add row</button>
+              <button class="secondary small" data-asset-add="${asset.id}">Add entry</button>
             </div>
+
+            <div id="assetDraft-${asset.id}" class="draft-box"></div>
 
             <div class="asset-table-wrap">
               <table class="ledger-table">
@@ -700,7 +710,7 @@ function renderAssets() {
                 </thead>
                 <tbody>
                   ${rows.length ? rows.map((tx) => `
-                    <tr class="asset-row-edit">
+                    <tr class="asset-row-edit" data-transaction-id="${tx.id}">
                       <td><input value="${tx.date}" data-row-field="date"></td>
                       <td>
                         <select data-row-field="direction">
@@ -716,8 +726,6 @@ function renderAssets() {
                 </tbody>
               </table>
             </div>
-
-            <div id="assetDraft-${asset.id}" class="draft-box"></div>
 
             <div class="row-actions">
               <button class="secondary small" onclick="deleteAsset('${asset.id}')">Delete</button>
@@ -775,7 +783,20 @@ function saveAssetRows(assetId) {
   const asset = state.assets.find((item) => item.id === assetId);
   if (!asset) return;
 
-  const rows = [...document.querySelectorAll(`#assetDraft-${assetId} .asset-draft-row`)]
+  const existingRows = [...document.querySelectorAll(`.asset-card.active .asset-row-edit`)]
+    .map((row) => {
+      const inputs = row.querySelectorAll("input, select");
+      const date = inputs[0]?.value;
+      const direction = inputs[1]?.value || "in";
+      const amount = Number(inputs[2]?.value || 0);
+      const description = inputs[3]?.value.trim() || "";
+      if (!date || !description || amount <= 0) return null;
+      const existing = asset.transactions.find((tx) => tx.id === row.dataset.transactionId);
+      return { ...existing, id: row.dataset.transactionId, date, direction, amount, description, note: existing?.note || "" };
+    })
+    .filter(Boolean);
+
+  const draftRows = [...document.querySelectorAll(`#assetDraft-${assetId} .asset-draft-row`)]
     .map((row) => {
       const inputs = row.querySelectorAll("input, select");
       const date = inputs[0]?.value;
@@ -787,7 +808,7 @@ function saveAssetRows(assetId) {
     })
     .filter(Boolean);
 
-  asset.transactions.push(...rows);
+  asset.transactions = existingRows.concat(draftRows);
   saveState();
   toast("Asset updated");
 }
@@ -969,7 +990,7 @@ function bindEvents() {
     try {
       const parsed = JSON.parse(await file.text());
       if (!parsed || !Array.isArray(parsed.income) || !Array.isArray(parsed.expenses) || !Array.isArray(parsed.assets)) throw new Error();
-      state = parsed;
+      state = normalizeState(parsed);
       saveState();
       toast("Backup imported");
     } catch (error) {
@@ -990,7 +1011,7 @@ function bindEvents() {
   document.documentElement.classList.toggle("dark", !prefersLight);
 
   if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js?v=20260915-19").catch(() => {}));
+    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js?v=20260918-20").catch(() => {}));
   }
 }
 

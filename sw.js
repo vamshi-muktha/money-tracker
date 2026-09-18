@@ -1,4 +1,4 @@
-const CACHE_NAME = "money-tracker-v2";
+const CACHE_NAME = "money-tracker-v3";
 
 const APP_FILES = [
   "./",
@@ -34,12 +34,19 @@ self.addEventListener("activate", event => {
   );
 });
 
-// Serve cached files for offline use
+// Prefer fresh deployed files so GitHub Pages updates appear after a push.
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
 
   event.respondWith(
-    caches.match(event.request)
-      .then(cached => cached || fetch(event.request))
+    fetch(event.request)
+      .then(response => {
+        if (response.ok && new URL(event.request.url).origin === self.location.origin) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+        }
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
