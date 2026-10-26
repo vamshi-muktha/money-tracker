@@ -11,6 +11,8 @@ let incomeForm = null;
 let selectedAssetId = null;
 let expenseMode = "month";
 let pendingConfirmation = null;
+let editingNoteId = null;
+let expenseFormChanged = false;
 
 const modal = document.getElementById("modal");
 const modalTitle = document.getElementById("modalTitle");
@@ -37,7 +39,6 @@ const exportBtn = document.getElementById("exportBtn");
 const importFile = document.getElementById("importFile");
 const resetBtn = document.getElementById("resetBtn");
 const addPlainNoteBtn = document.getElementById("addPlainNoteBtn");
-const addMoneyNoteBtn = document.getElementById("addMoneyNoteBtn");
 const notesList = document.getElementById("notesList");
 const toastEl = document.getElementById("toast");
 const closeModalBtn = document.getElementById("modalCloseBtn");
@@ -65,7 +66,13 @@ function normalizeState(value) {
       ...asset,
       transactions: Array.isArray(asset.transactions) ? asset.transactions : []
     })) : [],
-    notes: Array.isArray(value?.notes) ? value.notes : []
+    notes: Array.isArray(value?.notes) ? value.notes.map((note) => ({
+      id: note.id || id(),
+      body: note.type === "table"
+        ? (note.entries || []).map((entry) => [entry.date, entry.amount, entry.description].filter(Boolean).join(" | ")).join("\n")
+        : String(note.body || ""),
+      type: "plain"
+    })) : []
   };
 }
 
@@ -227,10 +234,23 @@ function showModal(title, html) {
 }
 
 function hideModal() {
+  const wasExpenseForm = Boolean(modalBody.querySelector("#expenseForm"));
   modal.classList.add("hidden");
   modal.setAttribute("aria-hidden", "true");
   editing = null;
   pendingConfirmation = null;
+  if (editingNoteId) {
+    const note = state.notes.find((item) => item.id === editingNoteId);
+    if (note && !note.body.trim()) state.notes = state.notes.filter((item) => item.id !== editingNoteId);
+    editingNoteId = null;
+    persistState();
+    renderNotes();
+  }
+  if (wasExpenseForm && expenseFormChanged) {
+    expenseFormChanged = false;
+    renderExpenses();
+    renderDashboard();
+  }
 }
 
 function askConfirmation(message, action) {
@@ -549,7 +569,7 @@ function renderExpenses() {
         <div class="expense-table">
           <div class="expense-table-head"><span>Amount</span><span>Description</span><span></span></div>
           ${rows.length ? rows.map((entry) => `
-            <div class="expense-edit-row">
+            <div class="expense-edit-row" data-entry-id="${entry.id}">
               <input class="quick-amount" type="number" value="${entry.amount}" data-entry-id="${entry.id}">
               <input class="quick-desc" value="${esc(entry.description)}" data-entry-id="${entry.id}">
               <button class="row-delete" onclick="removeExpense('${entry.id}')">×</button>
@@ -558,7 +578,6 @@ function renderExpenses() {
           <div id="newrows-${date}"></div>
           <div class="row-actions">
             <button class="secondary small" onclick="addExpenseRow('${date}')">Add row</button>
-            <button class="primary small" onclick="saveDay('${date}')">Save</button>
           </div>
         </div>
       </div>
@@ -566,6 +585,50 @@ function renderExpenses() {
   }
 
   expenseCalendar.innerHTML = html;
+}
+
+function persistState() {
+  localStorage.setItem(KEY, JSON.stringify(state));
+}
+
+function updateExpenseTotals(date) {
+  const rows = state.expenses.filter((entry) => entry.date === date);
+  const total = rows.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const dayTotal = document.querySelector(`#day-${date} .day-total`);
+  if (dayTotal) dayTotal.textContent = money(total);
+
+  const monthKey = ym(expenseView);
+  const monthTotal = state.expenses
+    .filter((entry) => ymd(entry.date) === monthKey)
+    .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  expenseCurrentTotal.innerHTML = `<span>This month</span><strong>${money(monthTotal)}</strong><small>${months[expenseView.getMonth()]} ${expenseView.getFullYear()}</small>`;
+  renderDashboard();
+}
+
+function autosaveExpenseRow(row, date) {
+  const amountInput = row.querySelector(".quick-amount");
+  const descInput = row.querySelector(".quick-desc");
+  const amount = Number(amountInput?.value || 0);
+  const description = descInput?.value.trim() || "";
+  const entryId = row.dataset.entryId;
+  const existing = state.expenses.find((entry) => entry.id === entryId);
+
+  if (!amount || !description) return;
+
+  if (existing) {
+    existing.amount = amount;
+    existing.description = description;
+  } else {
+    const entry = { id: id(), date, amount, description, category: "Other", note: "" };
+    state.expenses.push(entry);
+    row.dataset.entryId = entry.id;
+    row.classList.remove("new");
+    amountInput.dataset.entryId = entry.id;
+    descInput.dataset.entryId = entry.id;
+  }
+
+  persistState();
+  updateExpenseTotals(date);
 }
 
 function addExpenseRow(date) {
@@ -582,35 +645,6 @@ function addExpenseRow(date) {
   container.appendChild(row);
 }
 
-function saveDay(date) {
-  const dayContainer = document.getElementById(`day-${date}`);
-  const rows = dayContainer ? [...dayContainer.querySelectorAll(".expense-edit-row")] : [];
-  const entriesOnThisDay = state.expenses.filter((entry) => entry.date === date);
-
-  const nextList = [];
-  rows.forEach((row) => {
-    const amountInput = row.querySelector(".quick-amount");
-    const descInput = row.querySelector(".quick-desc");
-    const amount = Number(amountInput?.value || 0);
-    const description = descInput?.value.trim() || "";
-    if (!amount || !description) return;
-
-    const existing = entriesOnThisDay.find((entry) => entry.id === row.dataset.entryId);
-    if (existing) {
-      existing.amount = amount;
-      existing.description = description;
-      existing.category = existing.category || "Other";
-      nextList.push(existing);
-    } else {
-      nextList.push({ id: id(), date, amount, description, category: "Other", note: "" });
-    }
-  });
-
-  state.expenses = state.expenses.filter((entry) => entry.date !== date).concat(nextList);
-  saveState();
-  toast("Expense saved");
-}
-
 function removeExpense(idValue) {
   askConfirmation("Delete this expense?", () => {
     state.expenses = state.expenses.filter((entry) => entry.id !== idValue);
@@ -620,46 +654,58 @@ function removeExpense(idValue) {
 }
 
 function confirmRemoveDraftRow(button) {
+  const row = button.parentElement;
+  if (row?.dataset.entryId) {
+    removeExpense(row.dataset.entryId);
+    return;
+  }
   askConfirmation("Remove this unsaved row?", () => button.parentElement.remove());
 }
 
 function addExpenseForDate(date) {
+  expenseFormChanged = false;
   showModal("Add expense", `
-    <form class="form" onsubmit="submitExpense(event)">
+    <form id="expenseForm" class="form" onsubmit="event.preventDefault(); hideModal()">
       <div class="field"><label>Date</label><input id="fDate" type="date" value="${date}" required></div>
       <div class="field"><label>Amount</label><input id="fAmount" type="number" min="0" step="0.01" required></div>
       <div class="field"><label>Description</label><input id="fDescription" placeholder="e.g. Grocery, rent, travel" required></div>
       <div class="field"><label>Category</label><select id="fCategory">${state.expenseCategories.map((item) => `<option value="${esc(item)}">${esc(item)}</option>`).join("")}</select></div>
       <div class="field"><label>Note</label><input id="fNote" placeholder="Optional note"></div>
-      ${formButtons()}
+      <div class="form-actions"><button type="button" class="cancel" onclick="hideModal()">Close</button></div>
     </form>
   `);
+  const form = document.getElementById("expenseForm");
+  form.addEventListener("input", autosaveExpenseForm);
+  form.addEventListener("change", autosaveExpenseForm);
 }
 
-function submitExpense(event) {
-  event.preventDefault();
+function autosaveExpenseForm() {
+  const form = document.getElementById("expenseForm");
+  if (!form || !form.checkValidity()) return;
+  const date = document.getElementById("fDate").value;
   const payload = {
-    id: editing || id(),
-    date: document.getElementById("fDate").value,
+    date,
     amount: Number(document.getElementById("fAmount").value || 0),
     description: document.getElementById("fDescription").value.trim(),
     category: document.getElementById("fCategory").value,
     note: document.getElementById("fNote").value.trim()
   };
-
   if (!payload.date || !payload.description || payload.amount <= 0) return;
 
-  if (editing) {
-    const index = state.expenses.findIndex((item) => item.id === editing);
-    if (index >= 0) state.expenses[index] = payload;
+  const existing = form.dataset.entryId
+    ? state.expenses.find((item) => item.id === form.dataset.entryId)
+    : null;
+  if (existing) {
+    Object.assign(existing, payload);
   } else {
+    payload.id = id();
     state.expenses.push(payload);
+    form.dataset.entryId = payload.id;
   }
 
-  expenseView = new Date(`${payload.date}T00:00:00`);
-  hideModal();
-  saveState();
-  toast("Expense saved");
+  expenseView = new Date(`${date}T00:00:00`);
+  expenseFormChanged = true;
+  persistState();
 }
 
 function renderAssets() {
@@ -676,7 +722,7 @@ function renderAssets() {
     const rows = [...(asset.transactions || [])].sort((a, b) => b.date.localeCompare(a.date));
 
     return `
-      <div class="asset-card ${open ? "active" : ""}">
+      <div class="asset-card ${open ? "active" : ""}" data-asset-id="${asset.id}">
         <div class="asset-head" data-asset-toggle="${asset.id}" role="button" tabindex="0" aria-expanded="${open}">
           <div class="asset-main">
             <div class="asset-icon">${esc(asset.name.slice(0, 1).toUpperCase())}</div>
@@ -729,7 +775,6 @@ function renderAssets() {
 
             <div class="row-actions">
               <button class="secondary small" onclick="deleteAsset('${asset.id}')">Delete</button>
-              <button class="primary small" data-asset-save="${asset.id}">Save</button>
             </div>
           </div>
         ` : ""}
@@ -755,9 +800,8 @@ function renderAssets() {
     button.addEventListener("click", () => addAssetDraftRow(button.dataset.assetAdd));
   });
 
-  assetList.querySelectorAll("[data-asset-save]").forEach((button) => {
-    button.addEventListener("click", () => saveAssetRows(button.dataset.assetSave));
-  });
+  assetList.oninput = autosaveAssetRow;
+  assetList.onchange = autosaveAssetRow;
 }
 
 function addAssetDraftRow(assetId) {
@@ -767,50 +811,96 @@ function addAssetDraftRow(assetId) {
   const row = document.createElement("div");
   row.className = "asset-draft-row";
   row.innerHTML = `
-    <input type="date" value="${new Date().toISOString().slice(0, 10)}">
-    <select>
+    <input type="date" value="${new Date().toISOString().slice(0, 10)}" data-row-field="date">
+    <select data-row-field="direction">
       <option value="in">In</option>
       <option value="out">Out</option>
     </select>
-    <input type="number" placeholder="Amount" step="0.01">
-    <input type="text" placeholder="Description">
-    <button class="row-delete" onclick="confirmRemoveDraftRow(this)">×</button>
+    <input type="number" placeholder="Amount" step="0.01" data-row-field="amount">
+    <input type="text" placeholder="Description" data-row-field="description">
+    <button class="row-delete" onclick="removeAssetDraftRow(this)">×</button>
   `;
   draftBox.appendChild(row);
+  let actions = draftBox.querySelector(".asset-draft-actions");
+  if (!actions) {
+    actions = document.createElement("div");
+    actions.className = "row-actions asset-draft-actions";
+    actions.innerHTML = `<button class="primary small" type="button">Save entry</button>`;
+    draftBox.appendChild(actions);
+    actions.querySelector("button").addEventListener("click", () => saveAssetDraftRows(assetId));
+  }
 }
 
-function saveAssetRows(assetId) {
+function autosaveAssetRow(event) {
+  const input = event.target.closest("[data-row-field]");
+  const row = input?.closest(".asset-row-edit");
+  const assetId = row?.closest(".asset-card")?.dataset.assetId;
   const asset = state.assets.find((item) => item.id === assetId);
   if (!asset) return;
 
-  const existingRows = [...document.querySelectorAll(`.asset-card.active .asset-row-edit`)]
-    .map((row) => {
-      const inputs = row.querySelectorAll("input, select");
-      const date = inputs[0]?.value;
-      const direction = inputs[1]?.value || "in";
-      const amount = Number(inputs[2]?.value || 0);
-      const description = inputs[3]?.value.trim() || "";
-      if (!date || !description || amount <= 0) return null;
-      const existing = asset.transactions.find((tx) => tx.id === row.dataset.transactionId);
-      return { ...existing, id: row.dataset.transactionId, date, direction, amount, description, note: existing?.note || "" };
-    })
-    .filter(Boolean);
+  const fields = row.querySelectorAll("[data-row-field]");
+  const values = Object.fromEntries([...fields].map((field) => [field.dataset.rowField, field.value]));
+  const amount = Number(values.amount || 0);
+  const description = values.description?.trim() || "";
+  const transaction = asset.transactions.find((tx) => tx.id === row.dataset.transactionId);
+  if (!transaction || !values.date || !description || amount <= 0) return;
 
-  const draftRows = [...document.querySelectorAll(`#assetDraft-${assetId} .asset-draft-row`)]
-    .map((row) => {
-      const inputs = row.querySelectorAll("input, select");
-      const date = inputs[0]?.value;
-      const direction = inputs[1]?.value || "in";
-      const amount = Number(inputs[2]?.value || 0);
-      const description = inputs[3]?.value.trim() || "";
-      if (!date || !description || amount <= 0) return null;
-      return { id: id(), date, direction, amount, description, note: "" };
-    })
-    .filter(Boolean);
+  Object.assign(transaction, {
+    date: values.date,
+    direction: values.direction || "in",
+    amount,
+    description
+  });
 
-  asset.transactions = existingRows.concat(draftRows);
+  persistState();
+  assetTotal.textContent = money(totalAssets());
+  const balance = row.closest(".asset-card").querySelector(".asset-side strong");
+  if (balance) balance.textContent = money(assetBalance(asset));
+  const count = row.closest(".asset-card").querySelector(".asset-main p");
+  if (count) count.textContent = `Opening ${money(asset.opening || 0)} • ${asset.transactions.length} entries`;
+  renderDashboard();
+}
+
+function saveAssetDraftRows(assetId) {
+  const asset = state.assets.find((item) => item.id === assetId);
+  if (!asset) return;
+
+  const draftRows = [...document.querySelectorAll(`#assetDraft-${assetId} .asset-draft-row`)];
+  const validRows = draftRows.filter((row) => {
+    const values = Object.fromEntries([...row.querySelectorAll("[data-row-field]")]
+      .map((field) => [field.dataset.rowField, field.value]));
+    return values.date && values.description?.trim() && Number(values.amount) > 0;
+  });
+  if (!validRows.length) return;
+
+  validRows.forEach((row) => {
+    const values = Object.fromEntries([...row.querySelectorAll("[data-row-field]")]
+      .map((field) => [field.dataset.rowField, field.value]));
+    asset.transactions.push({
+      id: id(),
+      date: values.date,
+      direction: values.direction || "in",
+      amount: Number(values.amount),
+      description: values.description.trim(),
+      note: ""
+    });
+    row.remove();
+  });
+
+  if (!draftRows.some((row) => row.isConnected)) {
+    document.querySelector(`#assetDraft-${assetId} .asset-draft-actions`)?.remove();
+  }
   saveState();
-  toast("Asset updated");
+  toast("Asset entry saved");
+}
+
+function removeAssetDraftRow(button) {
+  const row = button.closest(".asset-draft-row");
+  const draftBox = row?.parentElement;
+  row?.remove();
+  if (draftBox && !draftBox.querySelector(".asset-draft-row")) {
+    draftBox.querySelector(".asset-draft-actions")?.remove();
+  }
 }
 
 function deleteAssetTx(assetId, txId) {
@@ -877,51 +967,33 @@ function renderNotes() {
   const notes = Array.isArray(state.notes) ? state.notes : [];
   notesList.innerHTML = notes.length ? notes.map((note) => `
     <article class="note-card" data-note-open="${note.id}">
-      <div class="note-card-head"><div><div class="eyebrow">${note.type === "table" ? "list note" : "plain note"}</div><h3>${esc(note.title)}</h3></div><button class="row-delete" onclick="deleteNote('${note.id}')">×</button></div>
-      <p class="note-preview">${note.type === "table" ? `${(note.entries || []).length} money entries` : esc((note.body || "").slice(0, 120))}</p>
+      <div class="note-card-head"><p class="note-preview">${esc((note.body || "").slice(0, 160))}</p><button class="row-delete" onclick="deleteNote('${note.id}')">×</button></div>
     </article>
   `).join("") : '<div class="empty-state">No notes yet.</div>';
   notesList.querySelectorAll("[data-note-open]").forEach((card) => card.addEventListener("click", (event) => {
-    if (!event.target.closest("button")) openNote(card.dataset.noteOpen);
+    if (!event.target.closest("button")) editNote(card.dataset.noteOpen);
   }));
 }
 
-function addNote(type = "plain") {
-  showModal(type === "plain" ? "Plain note" : "Money note", `
-    <form class="form" onsubmit="submitNote(event)">
-      <div class="field"><label>Title</label><input id="noteTitle" required></div>
-      <input id="noteType" type="hidden" value="${type}">
-      ${type === "plain" ? '<div class="field"><label>Note</label><textarea id="noteBody" class="note-editor" placeholder="Write your note"></textarea></div>' : '<div class="field"><label>Entries</label><textarea id="noteEntries" class="money-note-editor" placeholder="2026-09-15 | 500 | Description"></textarea><small>One entry per line: date | amount | description</small></div>'}
-      ${formButtons()}
-    </form>
-  `);
-}
-
-function submitNote(event) {
-  event.preventDefault();
-  const type = document.getElementById("noteType").value;
-  const note = { id: id(), title: document.getElementById("noteTitle").value.trim(), type };
-  if (type === "table") {
-    note.entries = document.getElementById("noteEntries").value.split("\n").map((line) => line.split("|").map((part) => part.trim())).filter((parts) => parts.length >= 3 && parts[0] && parts[2]).map(([date, amount, description]) => ({ date, amount: Number(amount) || 0, description }));
-  } else {
-    note.body = document.getElementById("noteBody").value.trim();
-  }
-  if (!note.title) return;
-  state.notes = Array.isArray(state.notes) ? state.notes : [];
-  state.notes.unshift(note);
-  hideModal();
-  saveState();
-  toast("Note saved");
-}
-
-function openNote(noteId) {
+function editNote(noteId) {
   const note = (state.notes || []).find((item) => item.id === noteId);
   if (!note) return;
-  if (note.type === "table") {
-    showModal(note.title, `<div class="table-wrap"><table class="ledger-table"><thead><tr><th>Date</th><th>Amount</th><th>Description</th></tr></thead><tbody>${(note.entries || []).map((entry) => `<tr><td>${esc(entry.date)}</td><td>${money(entry.amount)}</td><td>${esc(entry.description)}</td></tr>`).join("") || '<tr><td colspan="3">No entries yet.</td></tr>'}</tbody></table></div>`);
-  } else {
-    showModal(note.title, `<div class="note-view">${esc(note.body || "")}</div>`);
-  }
+  editingNoteId = noteId;
+  showModal("Note", `<textarea id="noteBody" class="note-editor" aria-label="Note" placeholder="Take a note...">${esc(note.body || "")}</textarea>`);
+  const editor = document.getElementById("noteBody");
+  editor.addEventListener("input", () => {
+    note.body = editor.value;
+    persistState();
+  });
+  editor.focus();
+}
+
+function addNote() {
+  state.notes = Array.isArray(state.notes) ? state.notes : [];
+  const note = { id: id(), body: "", type: "plain" };
+  state.notes.unshift(note);
+  persistState();
+  editNote(note.id);
 }
 
 function deleteNote(noteId) {
@@ -944,11 +1016,15 @@ function bindEvents() {
   if (addIncomeTypeBtn) addIncomeTypeBtn.addEventListener("click", addIncomeType);
   if (addExpenseBtn) addExpenseBtn.addEventListener("click", () => addExpenseForDate(new Date().toISOString().slice(0, 10)));
   if (addAssetBtn) addAssetBtn.addEventListener("click", addAsset);
-  if (addPlainNoteBtn) addPlainNoteBtn.addEventListener("click", () => addNote("plain"));
-  if (addMoneyNoteBtn) addMoneyNoteBtn.addEventListener("click", () => addNote("table"));
+  if (addPlainNoteBtn) addPlainNoteBtn.addEventListener("click", addNote);
   if (closeModalBtn) closeModalBtn.addEventListener("click", hideModal);
   if (modalBackdrop) modalBackdrop.addEventListener("click", hideModal);
-
+  if (expenseCalendar) expenseCalendar.addEventListener("input", (event) => {
+    const input = event.target.closest(".quick-amount, .quick-desc");
+    const row = input?.closest(".expense-edit-row");
+    const date = row?.closest(".day-card")?.id.replace("day-", "");
+    if (row && date) autosaveExpenseRow(row, date);
+  });
   if (prevMonth) prevMonth.addEventListener("click", () => {
     expenseView = new Date(expenseView.getFullYear(), expenseView.getMonth() - 1, 1);
     renderExpenses();

@@ -674,7 +674,7 @@ main {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  min-height: 62px;
+  min-height: 2px;
   background: transparent;
   color: var(--muted);
   border-radius: 12px;
@@ -1241,4 +1241,47 @@ html:not(.dark) { --nav-bg: rgba(255, 255, 255, 0.96); }
   .insight-grid { grid-template-columns: 1fr; }
   .current-total { flex-wrap: wrap; }
   .current-total small { margin-left: 0; width: 100%; }
+}
+
+.bottom-nav {
+  z-index: 20;
+  padding: 5px 10px max(5px, env(safe-area-inset-bottom));
+}
+
+.nav-item {
+  min-height: 48px;
+  gap: 2px;
+}
+
+.nav-item span {
+  font-size: 1.05rem;
+}
+
+.nav-item small {
+  font-size: clamp(0.58rem, 2.2vw, 0.7rem);
+}
+
+.note-card-head .note-preview {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.note-editor {
+  display: block;
+  width: 100%;
+  min-height: min(60vh, 420px);
+  background: transparent;
+  color: var(--text);
+  border: 0;
+  outline: 0;
+  padding: 8px 2px;
+  line-height: 1.6;
+}
+
+@media (max-width: 760px) {
+  #app { padding-bottom: calc(68px + env(safe-area-inset-bottom)); }
+  .bottom-nav { padding: 5px 10px max(5px, env(safe-area-inset-bottom)); }
+  .nav-item { min-height: 48px; }
 }
